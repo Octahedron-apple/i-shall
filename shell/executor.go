@@ -11,6 +11,28 @@ func ExecutePipeline(pipeline *Pipeline) {
 		return
 	}
 
+	// Handle Built-ins (like cd)
+	firstCmd := pipeline.Commands[0]
+	if len(firstCmd.Args) > 0 && firstCmd.Args[0] == "cd" {
+		var targetDir string
+		if len(firstCmd.Args) > 1 {
+			targetDir = firstCmd.Args[1]
+		} else {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Error getting home directory:", err)
+				return
+			}
+			targetDir = home
+		}
+
+		err := os.Chdir(targetDir)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		return
+	}
+
 	var cmds []*exec.Cmd
 
 	for _, astCmd := range pipeline.Commands {
