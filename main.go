@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"i-shall/shell"
 )
 
 func main() {
@@ -27,12 +29,10 @@ func main() {
 			break
 		}
 
-		// Split by pipe
-		commands := strings.Split(input, "|")
-		for i := range commands {
-			commands[i] = strings.TrimSpace(commands[i])
-		}
+		lexer := shell.NewLexer(input)
+		parser := shell.NewParser(lexer)
+		pipeline := parser.ParsePipeline()
 
-		executePipeline(commands)
+		shell.ExecutePipeline(pipeline)
 	}
 }
