@@ -9,13 +9,16 @@ const (
 )
 
 type Arg struct {
-	Value       string
-	IsGlobbable bool
-	IsVarRef    bool   // Starts with $ or #
-	VarName     string // The name of the variable
-	VarType     string // "$" or "#"
-	IsArrayIdx  bool
-	ArrayIndex  string // The index if it's an array access e.g., $arr[0]
+	Value          string
+	IsGlobbable    bool
+	IsDoubleQuoted bool
+	IsVarRef       bool
+	VarName        string
+	VarType        string // $ or #
+	IsArrayIdx     bool
+	ArrayIndex     string
+	IsCommandSub   bool
+	CommandSub     string
 }
 
 type Command struct {

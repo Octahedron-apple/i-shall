@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 )
 
 type VarValue struct {
@@ -18,6 +21,94 @@ type VarValue struct {
 
 var Env = make(map[string]VarValue)
 var Funcs = make(map[string]*Script)
+var traps = make(map[string]string)
+var signalChan = make(chan os.Signal, 1)
+
+func init() {
+	go func() {
+		for sig := range signalChan {
+			if cmdStr, ok := traps[sig.String()]; ok {
+				execCommandSub(cmdStr)
+			}
+		}
+	}()
+}
+
+func execCommandSub(scriptStr string) string {
+	exe, err := os.Executable()
+	if err != nil {
+		exe = os.Args[0]
+	}
+	cmd := exec.Command(exe, "-c", scriptStr)
+	out, err := cmd.Output()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "command sub error:", err)
+		return ""
+	}
+	return strings.TrimSuffix(string(out), "\n")
+}
+
+func expandTilde(s string) string {
+	if strings.HasPrefix(s, "~/") || s == "~" {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			return home + s[1:]
+		}
+	}
+	return s
+}
+
+func expandBraces(s string) []string {
+	start := strings.Index(s, "{")
+	if start == -1 {
+		return []string{s}
+	}
+	end := -1
+	open := 0
+	for i := start; i < len(s); i++ {
+		if s[i] == '{' {
+			open++
+		} else if s[i] == '}' {
+			open--
+			if open == 0 {
+				end = i
+				break
+			}
+		}
+	}
+	if end == -1 {
+		return []string{s}
+	}
+
+	prefix := s[:start]
+	suffix := s[end+1:]
+	options := strings.Split(s[start+1:end], ",")
+
+	var res []string
+	for _, opt := range options {
+		res = append(res, prefix+opt+suffix)
+	}
+	
+	var finalRes []string
+	for _, r := range res {
+		finalRes = append(finalRes, expandBraces(r)...)
+	}
+	return finalRes
+}
+
+func interpolateString(s string) string {
+	re := regexp.MustCompile(`([$#])([a-zA-Z_][a-zA-Z0-9_]*)`)
+	return re.ReplaceAllStringFunc(s, func(match string) string {
+		name := match[1:]
+		if val, ok := Env[name]; ok {
+			if val.IsNumber {
+				return strconv.FormatFloat(val.NumberValue, 'f', -1, 64)
+			}
+			return val.StringValue
+		}
+		return match
+	})
+}
 
 func ExecuteScript(script *Script) {
 	if script == nil {
@@ -95,6 +186,10 @@ func ExecuteStatement(stmt Statement) bool {
 }
 
 func parseValue(arg Arg) VarValue {
+	if arg.IsCommandSub {
+		arg.Value = execCommandSub(arg.CommandSub)
+	}
+
 	if arg.IsVarRef {
 		vals := resolveVarRefMulti(arg)
 		if len(vals) > 0 {
@@ -116,7 +211,7 @@ func executeAssignment(assign *Assignment) {
 			arr = append(arr, parseValue(v))
 		}
 		Env[assign.Name] = VarValue{ArrayValue: arr, IsArray: true}
-	} else if assign.Value.Value != "" || assign.Value.IsVarRef {
+	} else if assign.Value.Value != "" || assign.Value.IsVarRef || assign.Value.IsCommandSub {
 		val := parseValue(assign.Value)
 		Env[assign.Name] = val
 		if assign.IsExport {
@@ -292,6 +387,12 @@ func executePipeline(pipeline *Pipeline) bool {
 		
 		var expandedArgs []string
 		for _, arg := range astCmd.Args {
+			if arg.IsCommandSub {
+				out := execCommandSub(arg.CommandSub)
+				expandedArgs = append(expandedArgs, out)
+				continue
+			}
+
 			if arg.IsVarRef {
 				expandedArgs = append(expandedArgs, resolveVarRefMulti(arg)...)
 			} else if arg.IsGlobbable {
@@ -302,12 +403,37 @@ func executePipeline(pipeline *Pipeline) bool {
 					expandedArgs = append(expandedArgs, arg.Value)
 				}
 			} else {
-				expandedArgs = append(expandedArgs, arg.Value)
+				val := expandTilde(arg.Value)
+				if arg.IsDoubleQuoted {
+					val = interpolateString(val)
+				}
+				braced := expandBraces(val)
+				expandedArgs = append(expandedArgs, braced...)
 			}
 		}
 
 		if len(expandedArgs) == 0 && !astCmd.IsSubshell {
 			continue
+		}
+
+		if !astCmd.IsSubshell && expandedArgs[0] == "trap" {
+			if len(expandedArgs) < 3 {
+				fmt.Fprintln(os.Stderr, "usage: trap <command> <signal>")
+				return true
+			}
+			cmd := expandedArgs[1]
+			sigName := expandedArgs[2]
+			
+			var sig os.Signal
+			if sigName == "SIGINT" {
+				sig = os.Interrupt
+			}
+			
+			if sig != nil {
+				signal.Notify(signalChan, sig)
+				traps[sigName] = cmd
+			}
+			return true
 		}
 
 		// Function Execution Check

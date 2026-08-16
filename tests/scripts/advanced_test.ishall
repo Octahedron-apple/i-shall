@@ -1,0 +1,10 @@
+name = "Alice"
+age = 30
+echo "Hello $name you are #age years old!"
+
+echo "These are test files:" file_{1,2,3}.txt
+
+res = $(echo "command sub test")
+echo "Captured:" $res
+
+trap "echo Trap Caught!" SIGINT

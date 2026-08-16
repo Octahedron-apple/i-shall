@@ -178,7 +178,7 @@ func (p *Parser) parseAssignment(isExport bool) (*Assignment, error) {
 				continue
 			}
 			
-			if p.current.Type == TokenWord {
+			if p.current.Type == TokenWord || p.current.Type == TokenCommandSub {
 				assign.Values = append(assign.Values, p.parseArg(p.current))
 				p.advance()
 			} else {
@@ -195,7 +195,7 @@ func (p *Parser) parseAssignment(isExport bool) (*Assignment, error) {
 		if p.current.Type == TokenIncomplete {
 			return assign, ErrIncomplete
 		}
-		if p.current.Type == TokenWord {
+		if p.current.Type == TokenWord || p.current.Type == TokenCommandSub {
 			assign.Value = p.parseArg(p.current)
 			p.advance()
 		}
@@ -474,8 +474,14 @@ func (p *Parser) parsePipeline() (*Pipeline, error) {
 }
 
 func (p *Parser) parseArg(t Token) Arg {
-	arg := Arg{Value: t.Value, IsGlobbable: t.IsGlobbable}
-	if strings.HasPrefix(t.Value, "$") || strings.HasPrefix(t.Value, "#") {
+	if t.Type == TokenCommandSub {
+		return Arg{IsCommandSub: true, CommandSub: t.Value}
+	}
+
+	arg := Arg{Value: t.Value, IsGlobbable: t.IsGlobbable, IsDoubleQuoted: t.IsDoubleQuoted}
+
+	// Only treat as direct variable reference if it's not quoted
+	if (strings.HasPrefix(t.Value, "$") || strings.HasPrefix(t.Value, "#")) && !t.IsSingleQuoted && !t.IsDoubleQuoted {
 		arg.IsVarRef = true
 		arg.VarType = string(t.Value[0])
 		name := t.Value[1:]
@@ -545,7 +551,7 @@ func (p *Parser) parseCommand() (*Command, error) {
 		}
 		
 		switch p.current.Type {
-		case TokenWord:
+		case TokenWord, TokenCommandSub:
 			if !cmd.IsSubshell {
 				cmd.Args = append(cmd.Args, p.parseArg(p.current))
 			}
