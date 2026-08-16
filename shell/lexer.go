@@ -18,8 +18,9 @@ const (
 )
 
 type Token struct {
-	Type  TokenType
-	Value string
+	Type        TokenType
+	Value       string
+	IsGlobbable bool
 }
 
 type Lexer struct {
@@ -78,6 +79,7 @@ func (l *Lexer) readWord() Token {
 	var builder strings.Builder
 	var inSingleQuote bool
 	var inDoubleQuote bool
+	var isGlobbable bool
 
 	for l.pos < len(l.input) {
 		char := l.input[l.pos]
@@ -97,11 +99,14 @@ func (l *Lexer) readWord() Token {
 			if char == ' ' || char == '\t' || char == '|' || char == '<' || char == '>' || char == '&' {
 				break
 			}
+			if char == '*' || char == '?' {
+				isGlobbable = true
+			}
 		}
 
 		builder.WriteByte(char)
 		l.pos++
 	}
 
-	return Token{Type: TokenWord, Value: builder.String()}
+	return Token{Type: TokenWord, Value: builder.String(), IsGlobbable: isGlobbable}
 }

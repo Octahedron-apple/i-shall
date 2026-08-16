@@ -81,7 +81,7 @@ func (p *Parser) parseCommand() *Command {
 	for p.current.Type != TokenEOF && p.current.Type != TokenPipe && p.current.Type != TokenAnd && p.current.Type != TokenOr {
 		switch p.current.Type {
 		case TokenWord:
-			cmd.Args = append(cmd.Args, p.current.Value)
+			cmd.Args = append(cmd.Args, Arg{Value: p.current.Value, IsGlobbable: p.current.IsGlobbable})
 			p.advance()
 		case TokenRedirectIn:
 			p.advance()

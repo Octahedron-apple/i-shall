@@ -19,7 +19,7 @@ func TestParser(t *testing.T) {
 						Op: shell.OpNone,
 						Pipeline: &shell.Pipeline{
 							Commands: []*shell.Command{
-								{Args: []string{"ls", "-l"}},
+								{Args: []shell.Arg{{Value: "ls"}, {Value: "-l"}}},
 							},
 						},
 					},
@@ -34,8 +34,8 @@ func TestParser(t *testing.T) {
 						Op: shell.OpNone,
 						Pipeline: &shell.Pipeline{
 							Commands: []*shell.Command{
-								{Args: []string{"cat"}, RedirectIn: "input.txt"},
-								{Args: []string{"grep", "a"}, RedirectOut: "output.txt", RedirectAppend: false},
+								{Args: []shell.Arg{{Value: "cat"}}, RedirectIn: "input.txt"},
+								{Args: []shell.Arg{{Value: "grep"}, {Value: "a"}}, RedirectOut: "output.txt", RedirectAppend: false},
 							},
 						},
 					},
@@ -50,7 +50,7 @@ func TestParser(t *testing.T) {
 						Op: shell.OpNone,
 						Pipeline: &shell.Pipeline{
 							Commands: []*shell.Command{
-								{Args: []string{"build"}},
+								{Args: []shell.Arg{{Value: "build"}}},
 							},
 						},
 					},
@@ -58,7 +58,7 @@ func TestParser(t *testing.T) {
 						Op: shell.OpAnd,
 						Pipeline: &shell.Pipeline{
 							Commands: []*shell.Command{
-								{Args: []string{"run"}},
+								{Args: []shell.Arg{{Value: "run"}}},
 							},
 						},
 					},
@@ -66,7 +66,7 @@ func TestParser(t *testing.T) {
 						Op: shell.OpOr,
 						Pipeline: &shell.Pipeline{
 							Commands: []*shell.Command{
-								{Args: []string{"echo", "failed"}},
+								{Args: []shell.Arg{{Value: "echo"}, {Value: "failed"}}},
 							},
 						},
 					},

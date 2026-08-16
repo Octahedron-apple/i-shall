@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 func ExecuteSequence(seq *Sequence) {
@@ -36,10 +37,10 @@ func executePipeline(pipeline *Pipeline) bool {
 
 	// Handle Built-ins (like cd)
 	firstCmd := pipeline.Commands[0]
-	if len(firstCmd.Args) > 0 && firstCmd.Args[0] == "cd" {
+	if len(firstCmd.Args) > 0 && firstCmd.Args[0].Value == "cd" {
 		var targetDir string
 		if len(firstCmd.Args) > 1 {
-			targetDir = firstCmd.Args[1]
+			targetDir = firstCmd.Args[1].Value
 		} else {
 			home, err := os.UserHomeDir()
 			if err != nil {
@@ -64,7 +65,21 @@ func executePipeline(pipeline *Pipeline) bool {
 			continue
 		}
 		
-		cmd := exec.Command(astCmd.Args[0], astCmd.Args[1:]...)
+		var expandedArgs []string
+		for _, arg := range astCmd.Args {
+			if arg.IsGlobbable {
+				matches, err := filepath.Glob(arg.Value)
+				if err == nil && len(matches) > 0 {
+					expandedArgs = append(expandedArgs, matches...)
+				} else {
+					expandedArgs = append(expandedArgs, arg.Value)
+				}
+			} else {
+				expandedArgs = append(expandedArgs, arg.Value)
+			}
+		}
+
+		cmd := exec.Command(expandedArgs[0], expandedArgs[1:]...)
 		cmd.Stderr = os.Stderr
 
 		if astCmd.RedirectIn != "" {

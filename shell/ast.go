@@ -8,8 +8,13 @@ const (
 	OpOr
 )
 
+type Arg struct {
+	Value       string
+	IsGlobbable bool
+}
+
 type Command struct {
-	Args           []string
+	Args           []Arg
 	RedirectIn     string
 	RedirectOut    string
 	RedirectAppend bool
