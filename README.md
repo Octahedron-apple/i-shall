@@ -15,13 +15,13 @@ While minimal, `i-shall` currently supports a core set of standard POSIX shell f
 - **Quote Parsing**: Correctly groups strings with spaces using single (`'`) and double (`"`) quotes.
 - **Built-ins**: Currently supports `cd` (changes directory) and `exit`.
 - **Dynamic Colored Prompt**: Displays a colorful `user@device@ishall:filepath>` prompt using ANSI escape codes.
+- **Tab Completion & History**: Supports auto-completing files in the current directory with `TAB`, saving command history across sessions, and full arrow-key cursor navigation.
 
 ## What it lacks
 
 `i-shall` is an educational project and lacks many quality-of-life and advanced features found in daily-driver shells like Bash, Zsh, or Fish. Currently, it **does not** support:
 
 - **Variables & Environment Manipulation**: No support for `$VAR` expansion, `export`, or `.bashrc`/profile sourcing.
-- **Tab Completion & History**: Pressing the up-arrow or tab key will not work, as it currently reads raw bytes via `bufio` rather than utilizing a readline library.
 - **Background Tasks & Job Control**: No support for running commands in the background (`&`), nor handling `Ctrl+Z` to suspend jobs (`fg`/`bg`).
 - **Globbing/Wildcards**: Using `*` or `?` (e.g., `rm *.txt`) will not expand to file lists. It will be passed as a literal `*` to the command.
 - **Advanced Control Flow**: No `if`, `while`, `for`, or subshells `()`.
