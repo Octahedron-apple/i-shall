@@ -31,6 +31,35 @@ type SequenceNode struct {
 	Pipeline *Pipeline
 }
 
+// Statement interface allows Script to hold multiple types of structures
+type Statement interface {
+	isStatement()
+}
+
 type Sequence struct {
 	Nodes []*SequenceNode
+}
+func (s *Sequence) isStatement() {}
+
+type ElifBlock struct {
+	Condition *Sequence
+	Body      *Script
+}
+
+type IfControl struct {
+	Condition *Sequence
+	Body      *Script
+	Elifs     []*ElifBlock
+	ElseBody  *Script
+}
+func (s *IfControl) isStatement() {}
+
+type WhileControl struct {
+	Condition *Sequence
+	Body      *Script
+}
+func (s *WhileControl) isStatement() {}
+
+type Script struct {
+	Statements []Statement
 }

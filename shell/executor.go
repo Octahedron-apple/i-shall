@@ -5,18 +5,64 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 )
 
-func ExecuteSequence(seq *Sequence) {
-	if seq == nil || len(seq.Nodes) == 0 {
+func ExecuteScript(script *Script) {
+	if script == nil {
 		return
 	}
+	for _, stmt := range script.Statements {
+		ExecuteStatement(stmt)
+	}
+}
 
-	var lastSuccess bool = true // Initial state
+func ExecuteStatement(stmt Statement) bool {
+	if stmt == nil {
+		return true
+	}
+
+	switch s := stmt.(type) {
+	case *Sequence:
+		return ExecuteSequence(s)
+	case *IfControl:
+		success := ExecuteSequence(s.Condition)
+		if success {
+			ExecuteScript(s.Body)
+			return true // or return the exit code of Body
+		}
+
+		for _, elif := range s.Elifs {
+			if ExecuteSequence(elif.Condition) {
+				ExecuteScript(elif.Body)
+				return true
+			}
+		}
+
+		if s.ElseBody != nil {
+			ExecuteScript(s.ElseBody)
+			return true
+		}
+		return true
+	case *WhileControl:
+		for {
+			if !ExecuteSequence(s.Condition) {
+				break
+			}
+			ExecuteScript(s.Body)
+		}
+		return true
+	}
+	return false
+}
+
+func ExecuteSequence(seq *Sequence) bool {
+	if seq == nil || len(seq.Nodes) == 0 {
+		return true
+	}
+
+	var lastSuccess bool = true
 
 	for i, node := range seq.Nodes {
-		// Determine if we should execute based on previous success and current Op
 		if i > 0 {
 			if node.Op == OpAnd && !lastSuccess {
 				continue
@@ -28,6 +74,8 @@ func ExecuteSequence(seq *Sequence) {
 
 		lastSuccess = executePipeline(node.Pipeline)
 	}
+	
+	return lastSuccess
 }
 
 // executePipeline returns true if successful (exit code 0), false otherwise
@@ -36,7 +84,7 @@ func executePipeline(pipeline *Pipeline) bool {
 		return true
 	}
 
-	// Handle Built-ins (like cd)
+	// Handle Built-ins
 	firstCmd := pipeline.Commands[0]
 	if len(firstCmd.Args) > 0 && firstCmd.Args[0].Value == "cd" {
 		var targetDir string
@@ -63,7 +111,6 @@ func executePipeline(pipeline *Pipeline) bool {
 			return false
 		}
 		
-		// For source, we expand args to support `source ~/.ishallrc` or `source *.sh` if we wanted
 		fileToSource := firstCmd.Args[1].Value
 		if firstCmd.Args[1].IsGlobbable {
 			matches, _ := filepath.Glob(fileToSource)
@@ -77,17 +124,12 @@ func executePipeline(pipeline *Pipeline) bool {
 			fmt.Fprintln(os.Stderr, "source:", err)
 			return false
 		}
-		lines := strings.Split(string(content), "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			lexer := NewLexer(line)
-			parser := NewParser(lexer)
-			seq := parser.ParseSequence()
-			ExecuteSequence(seq)
-		}
+		
+		lexer := NewLexer(string(content))
+		parser := NewParser(lexer)
+		script := parser.ParseScript()
+		ExecuteScript(script)
+		
 		return true
 	}
 
@@ -177,8 +219,6 @@ func executePipeline(pipeline *Pipeline) bool {
 	var success bool = true
 	for i, cmd := range cmds {
 		err := cmd.Wait()
-		
-		// We only care about the exit status of the LAST command in the pipeline
 		if i == len(cmds)-1 {
 			if err != nil {
 				success = false

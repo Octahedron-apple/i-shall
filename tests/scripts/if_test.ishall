@@ -1,0 +1,17 @@
+echo "Starting if test";
+
+if true ;
+    echo "True block executed!"
+elif false ;
+    echo "Elif block executed!"
+else
+    echo "Else block executed!"
+fi;
+
+if false ;
+    echo "False block executed!"
+elif true ;
+    echo "Elif true block executed!"
+else
+    echo "Else block executed!"
+fi;

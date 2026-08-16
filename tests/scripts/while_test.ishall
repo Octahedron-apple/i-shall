@@ -1,0 +1,10 @@
+echo "Starting while test";
+
+touch /tmp/loop_test;
+
+while ls /tmp/loop_test ;
+    echo "Looping!";
+    rm /tmp/loop_test;
+done;
+
+echo "Done looping!";

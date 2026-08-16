@@ -36,8 +36,8 @@ func main() {
 	if *cFlag != "" {
 		lexer := shell.NewLexer(*cFlag)
 		parser := shell.NewParser(lexer)
-		seq := parser.ParseSequence()
-		shell.ExecuteSequence(seq)
+		script := parser.ParseScript()
+		shell.ExecuteScript(script)
 		return
 	}
 
@@ -58,8 +58,8 @@ func main() {
 		if _, err := os.Stat(rcPath); err == nil {
 			lexer := shell.NewLexer("source " + rcPath)
 			parser := shell.NewParser(lexer)
-			seq := parser.ParseSequence()
-			shell.ExecuteSequence(seq)
+			script := parser.ParseScript()
+			shell.ExecuteScript(script)
 		}
 	}
 
@@ -101,8 +101,8 @@ func main() {
 
 		lexer := shell.NewLexer(input)
 		parser := shell.NewParser(lexer)
-		seq := parser.ParseSequence()
+		script := parser.ParseScript()
 
-		shell.ExecuteSequence(seq)
+		shell.ExecuteScript(script)
 	}
 }

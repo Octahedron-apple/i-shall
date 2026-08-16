@@ -17,6 +17,13 @@ const (
 	TokenOr             // ||
 	TokenLParen         // (
 	TokenRParen         // )
+	TokenSemicolon      // ;
+	TokenIf
+	TokenElif
+	TokenElse
+	TokenFi
+	TokenWhile
+	TokenDone
 )
 
 type Token struct {
@@ -44,6 +51,12 @@ func (l *Lexer) NextToken() Token {
 	char := l.input[l.pos]
 
 	switch char {
+	case '#':
+		// Ignore comments until newline
+		for l.pos < len(l.input) && l.input[l.pos] != '\n' {
+			l.pos++
+		}
+		return l.NextToken()
 	case '&':
 		if l.pos+1 < len(l.input) && l.input[l.pos+1] == '&' {
 			l.pos += 2
@@ -72,13 +85,16 @@ func (l *Lexer) NextToken() Token {
 	case ')':
 		l.pos++
 		return Token{Type: TokenRParen, Value: ")"}
+	case ';', '\n':
+		l.pos++
+		return Token{Type: TokenSemicolon, Value: ";"}
 	}
 
 	return l.readWord()
 }
 
 func (l *Lexer) skipWhitespace() {
-	for l.pos < len(l.input) && (l.input[l.pos] == ' ' || l.input[l.pos] == '\t') {
+	for l.pos < len(l.input) && (l.input[l.pos] == ' ' || l.input[l.pos] == '\t' || l.input[l.pos] == '\r') {
 		l.pos++
 	}
 }
@@ -104,7 +120,7 @@ func (l *Lexer) readWord() Token {
 		}
 
 		if !inSingleQuote && !inDoubleQuote {
-			if char == ' ' || char == '\t' || char == '|' || char == '<' || char == '>' || char == '&' || char == '(' || char == ')' {
+			if char == ' ' || char == '\t' || char == '\n' || char == '\r' || char == '|' || char == '<' || char == '>' || char == '&' || char == '(' || char == ')' || char == ';' {
 				break
 			}
 			if char == '*' || char == '?' {
@@ -116,5 +132,23 @@ func (l *Lexer) readWord() Token {
 		l.pos++
 	}
 
-	return Token{Type: TokenWord, Value: builder.String(), IsGlobbable: isGlobbable}
+	val := builder.String()
+	if !isGlobbable && !inSingleQuote && !inDoubleQuote {
+		switch val {
+		case "if":
+			return Token{Type: TokenIf, Value: val, IsGlobbable: false}
+		case "elif":
+			return Token{Type: TokenElif, Value: val, IsGlobbable: false}
+		case "else":
+			return Token{Type: TokenElse, Value: val, IsGlobbable: false}
+		case "fi":
+			return Token{Type: TokenFi, Value: val, IsGlobbable: false}
+		case "while":
+			return Token{Type: TokenWhile, Value: val, IsGlobbable: false}
+		case "done":
+			return Token{Type: TokenDone, Value: val, IsGlobbable: false}
+		}
+	}
+
+	return Token{Type: TokenWord, Value: val, IsGlobbable: isGlobbable}
 }

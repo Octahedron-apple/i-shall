@@ -14,6 +14,7 @@ While minimal, `i-shall` currently supports a core set of standard POSIX shell f
 - **Logical Operators**: Conditional chaining of commands using `&&` (AND) and `||` (OR) (e.g., `build && run || echo "Failed"`).
 - **Quote Parsing**: Correctly groups strings with spaces using single (`'`) and double (`"`) quotes.
 - **Built-ins**: Currently supports `cd`, `exit`, and `source` (reads and executes commands from a file).
+- **Control Flow ("Better Syntax")**: Supports infinite-nesting for `if/elif/else/fi` and `while/done` loops. It uses a custom, cleaner syntax that drops standard bash's `then` and `do` keywords entirely, inferring block boundaries natively via semicolons (or newlines)!
 - **Profile Sourcing**: Automatically looks for and executes `~/.ishallrc` on startup.
 - **Subshells**: Enclosing commands in parentheses `( )` launches them in an isolated child process, enabling isolated execution environments that plug seamlessly into pipelines.
 - **Dynamic Colored Prompt**: Displays a colorful `user@device@ishall:filepath>` prompt using ANSI escape codes.
@@ -25,7 +26,7 @@ While minimal, `i-shall` currently supports a core set of standard POSIX shell f
 
 - **Variables & Environment Manipulation**: No support for `$VAR` expansion, `export`, or environment variables.
 - **Background Tasks & Job Control**: No support for running commands in the background (`&`), nor handling `Ctrl+Z` to suspend jobs (`fg`/`bg`).
-- **Advanced Control Flow**: No `if`, `while`, or `for` loops.
+- **Advanced Control Flow**: No `for` loops yet.
 - **Aliases**: No custom command aliases.
 
 ## Architecture & Testing
