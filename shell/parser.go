@@ -92,6 +92,24 @@ func (p *Parser) parseScriptBlock(untilTokens ...TokenType) (*Script, error) {
 			continue
 		}
 
+		if p.current.Type == TokenFn {
+			stmt, err := p.parseFn()
+			if err != nil {
+				return script, err
+			}
+			script.Statements = append(script.Statements, stmt)
+			continue
+		}
+
+		if p.current.Type == TokenAlias {
+			stmt, err := p.parseAlias()
+			if err != nil {
+				return script, err
+			}
+			script.Statements = append(script.Statements, stmt)
+			continue
+		}
+
 		var isExport bool
 		if p.current.Type == TokenExport {
 			isExport = true
@@ -334,6 +352,55 @@ func (p *Parser) parseFor() (*ForControl, error) {
 	}
 
 	return forCtrl, nil
+}
+
+func (p *Parser) parseFn() (*FunctionDef, error) {
+	p.advance() // consume 'fn'
+	if p.current.Type != TokenWord {
+		return nil, errors.New("expected function name")
+	}
+	fn := &FunctionDef{Name: p.current.Value}
+	p.advance() // consume name
+
+	if p.current.Type == TokenSemicolon {
+		p.advance()
+	}
+
+	body, err := p.parseScriptBlock(TokenEnd)
+	if err != nil {
+		return nil, err
+	}
+	fn.Body = body
+
+	if p.current.Type == TokenEnd {
+		p.advance()
+	} else if p.current.Type == TokenEOF {
+		return nil, ErrIncomplete
+	}
+
+	return fn, nil
+}
+
+func (p *Parser) parseAlias() (*AliasDef, error) {
+	p.advance() // consume 'alias'
+	if p.current.Type != TokenWord {
+		return nil, errors.New("expected alias name")
+	}
+	alias := &AliasDef{Name: p.current.Value}
+	p.advance() // consume name
+
+	if p.current.Type == TokenAssign {
+		p.advance() // consume =
+	}
+
+	if p.current.Type == TokenIncomplete {
+		return nil, ErrIncomplete
+	}
+
+	alias.Value = p.parseArg(p.current)
+	p.advance()
+
+	return alias, nil
 }
 
 func (p *Parser) ParseSequence() (*Sequence, error) {

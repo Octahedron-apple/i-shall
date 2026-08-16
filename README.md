@@ -26,7 +26,6 @@ While minimal, `i-shall` currently supports a core set of standard POSIX shell f
 `i-shall` is an educational project and lacks many quality-of-life and advanced features found in daily-driver shells like Bash, Zsh, or Fish. Currently, it **does not** support:
 
 - **BackgroundTasks & Job Control**: No support for running commands in the background (`&`), nor handling `Ctrl+Z` to suspend jobs (`fg`/`bg`).
-- **Aliases**: No custom command aliases.
 
 ## Architecture & Testing
 

@@ -28,6 +28,9 @@ const (
 	TokenComma          // ,
 	TokenFor            // for
 	TokenExport         // export
+	TokenFn             // fn
+	TokenEnd            // end
+	TokenAlias          // alias
 	TokenIncomplete     // Returned when EOF is hit inside quotes
 )
 
@@ -173,6 +176,12 @@ func (l *Lexer) readWord() Token {
 			return Token{Type: TokenFor, Value: val, IsGlobbable: false}
 		case "export":
 			return Token{Type: TokenExport, Value: val, IsGlobbable: false}
+		case "fn":
+			return Token{Type: TokenFn, Value: val, IsGlobbable: false}
+		case "end":
+			return Token{Type: TokenEnd, Value: val, IsGlobbable: false}
+		case "alias":
+			return Token{Type: TokenAlias, Value: val, IsGlobbable: false}
 		}
 	}
 

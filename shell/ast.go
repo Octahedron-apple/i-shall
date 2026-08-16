@@ -95,6 +95,18 @@ type MathAssignment struct {
 	Right    Arg
 }
 
+type FunctionDef struct {
+	Name string
+	Body *Script
+}
+func (s *FunctionDef) isStatement() {}
+
+type AliasDef struct {
+	Name  string
+	Value Arg
+}
+func (s *AliasDef) isStatement() {}
+
 type Script struct {
 	Statements []Statement
 }

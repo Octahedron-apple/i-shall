@@ -17,6 +17,7 @@ type VarValue struct {
 }
 
 var Env = make(map[string]VarValue)
+var Funcs = make(map[string]*Script)
 
 func ExecuteScript(script *Script) {
 	if script == nil {
@@ -75,15 +76,30 @@ func ExecuteStatement(stmt Statement) bool {
 			executeMathAssignment(s.Increment)
 		}
 		return true
+	case *FunctionDef:
+		Funcs[s.Name] = s.Body
+		return true
+	case *AliasDef:
+		val := parseValue(s.Value).StringValue
+		lexer := NewLexer(val + " $args")
+		parser := NewParser(lexer)
+		script, err := parser.ParseScript()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "alias error:", err)
+			return false
+		}
+		Funcs[s.Name] = script
+		return true
 	}
 	return false
 }
 
 func parseValue(arg Arg) VarValue {
 	if arg.IsVarRef {
-		val := resolveVarRef(arg)
-		// Return it as string, let it be reparsed below
-		arg.Value = val
+		vals := resolveVarRefMulti(arg)
+		if len(vals) > 0 {
+			arg.Value = vals[0]
+		}
 	}
 
 	// Try to parse as number
@@ -152,33 +168,40 @@ func executeMathAssignment(inc *MathAssignment) {
 	Env[inc.Name] = VarValue{NumberValue: res, IsNumber: true}
 }
 
-func resolveVarRef(arg Arg) string {
+func resolveVarRefMulti(arg Arg) []string {
 	val, ok := Env[arg.VarName]
 	if !ok {
-		return ""
+		return nil
 	}
 
 	if arg.IsArrayIdx {
 		idx, err := strconv.Atoi(arg.ArrayIndex)
 		if err != nil || !val.IsArray || idx < 0 || idx >= len(val.ArrayValue) {
-			return ""
+			return nil
 		}
 		val = val.ArrayValue[idx]
 	}
 
-	if arg.VarType == "$" {
-		if val.IsNumber {
-			return strconv.FormatFloat(val.NumberValue, 'f', -1, 64)
+	if val.IsArray && !arg.IsArrayIdx {
+		var res []string
+		for _, v := range val.ArrayValue {
+			if v.IsNumber {
+				res = append(res, strconv.FormatFloat(v.NumberValue, 'f', -1, 64))
+			} else {
+				res = append(res, v.StringValue)
+			}
 		}
-		return val.StringValue
-	} else if arg.VarType == "#" {
-		if val.IsNumber {
-			return strconv.FormatFloat(val.NumberValue, 'f', -1, 64)
-		}
-		return val.StringValue
+		return res
 	}
 
-	return ""
+	if arg.VarType == "$" || arg.VarType == "#" {
+		if val.IsNumber {
+			return []string{strconv.FormatFloat(val.NumberValue, 'f', -1, 64)}
+		}
+		return []string{val.StringValue}
+	}
+
+	return nil
 }
 
 func ExecuteSequence(seq *Sequence) bool {
@@ -269,20 +292,47 @@ func executePipeline(pipeline *Pipeline) bool {
 		
 		var expandedArgs []string
 		for _, arg := range astCmd.Args {
-			val := arg.Value
 			if arg.IsVarRef {
-				val = resolveVarRef(arg)
-			}
-
-			if arg.IsGlobbable && !arg.IsVarRef {
-				matches, err := filepath.Glob(val)
+				expandedArgs = append(expandedArgs, resolveVarRefMulti(arg)...)
+			} else if arg.IsGlobbable {
+				matches, err := filepath.Glob(arg.Value)
 				if err == nil && len(matches) > 0 {
 					expandedArgs = append(expandedArgs, matches...)
 				} else {
-					expandedArgs = append(expandedArgs, val)
+					expandedArgs = append(expandedArgs, arg.Value)
 				}
 			} else {
-				expandedArgs = append(expandedArgs, val)
+				expandedArgs = append(expandedArgs, arg.Value)
+			}
+		}
+
+		if len(expandedArgs) == 0 && !astCmd.IsSubshell {
+			continue
+		}
+
+		// Function Execution Check
+		if !astCmd.IsSubshell {
+			if fnBody, ok := Funcs[expandedArgs[0]]; ok {
+				// Save old args
+				oldArgs, hasOldArgs := Env["args"]
+				
+				// Set new $args array
+				var newArgs []VarValue
+				for _, a := range expandedArgs[1:] {
+					newArgs = append(newArgs, VarValue{StringValue: a})
+				}
+				Env["args"] = VarValue{ArrayValue: newArgs, IsArray: true}
+				
+				// Execute function body
+				ExecuteScript(fnBody)
+				
+				// Restore old args
+				if hasOldArgs {
+					Env["args"] = oldArgs
+				} else {
+					delete(Env, "args")
+				}
+				return true // Functions do not currently participate properly in pipes (simplification)
 			}
 		}
 
