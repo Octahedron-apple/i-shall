@@ -14,7 +14,8 @@ While minimal, `i-shall` currently supports a core set of standard POSIX shell f
 - **Logical Operators**: Conditional chaining of commands using `&&` (AND) and `||` (OR) (e.g., `build && run || echo "Failed"`).
 - **Quote Parsing**: Correctly groups strings with spaces using single (`'`) and double (`"`) quotes.
 - **Built-ins**: Currently supports `cd`, `exit`, and `source` (reads and executes commands from a file).
-- **Control Flow ("Better Syntax")**: Supports infinite-nesting for `if/elif/else/fi` and `while/done` loops. It uses a custom, cleaner syntax that drops standard bash's `then` and `do` keywords entirely, inferring block boundaries natively via semicolons (or newlines)!
+- **Control Flow ("Better Syntax")**: Supports infinite-nesting for `if/elif/else/fi`, `while/done` loops, and C-Style `for` loops (e.g., `for (#i = 0; #i < 5; #i = #i + 1)`). It uses a custom, cleaner syntax that drops standard bash's `then` and `do` keywords entirely, inferring block boundaries natively via semicolons (or newlines)!
+- **Variables & Exporting**: Support for `$var` (Strings), `#var` (Numbers) and arrays (`arr = (a, b)`). Assign variables natively with `name = "John"` and export them to child processes with `export name = "John"`.
 - **Profile Sourcing**: Automatically looks for and executes `~/.ishallrc` on startup.
 - **Subshells**: Enclosing commands in parentheses `( )` launches them in an isolated child process, enabling isolated execution environments that plug seamlessly into pipelines.
 - **Dynamic Colored Prompt**: Displays a colorful `user@device@ishall:filepath>` prompt using ANSI escape codes.
@@ -24,9 +25,7 @@ While minimal, `i-shall` currently supports a core set of standard POSIX shell f
 
 `i-shall` is an educational project and lacks many quality-of-life and advanced features found in daily-driver shells like Bash, Zsh, or Fish. Currently, it **does not** support:
 
-- **Variables & Environment Manipulation**: No support for `$VAR` expansion, `export`, or environment variables.
-- **Background Tasks & Job Control**: No support for running commands in the background (`&`), nor handling `Ctrl+Z` to suspend jobs (`fg`/`bg`).
-- **Advanced Control Flow**: No `for` loops yet.
+- **BackgroundTasks & Job Control**: No support for running commands in the background (`&`), nor handling `Ctrl+Z` to suspend jobs (`fg`/`bg`).
 - **Aliases**: No custom command aliases.
 
 ## Architecture & Testing

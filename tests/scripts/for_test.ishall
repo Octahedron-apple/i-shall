@@ -1,0 +1,6 @@
+export TEST_VAR = "HelloWorld"
+echo "Exported VAR is: " $TEST_VAR
+
+for ( #i = 0 ; #i < 5 ; #i = #i + 1 ) ;
+    echo "Loop index:" $i
+done

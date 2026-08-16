@@ -26,6 +26,8 @@ const (
 	TokenDone
 	TokenAssign         // =
 	TokenComma          // ,
+	TokenFor            // for
+	TokenExport         // export
 	TokenIncomplete     // Returned when EOF is hit inside quotes
 )
 
@@ -167,6 +169,10 @@ func (l *Lexer) readWord() Token {
 			return Token{Type: TokenWhile, Value: val, IsGlobbable: false}
 		case "done":
 			return Token{Type: TokenDone, Value: val, IsGlobbable: false}
+		case "for":
+			return Token{Type: TokenFor, Value: val, IsGlobbable: false}
+		case "export":
+			return Token{Type: TokenExport, Value: val, IsGlobbable: false}
 		}
 	}
 

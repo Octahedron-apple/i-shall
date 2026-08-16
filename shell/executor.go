@@ -65,6 +65,16 @@ func ExecuteStatement(stmt Statement) bool {
 			ExecuteScript(s.Body)
 		}
 		return true
+	case *ForControl:
+		executeAssignment(s.Init)
+		for {
+			if !executeMathCondition(s.Condition) {
+				break
+			}
+			ExecuteScript(s.Body)
+			executeMathAssignment(s.Increment)
+		}
+		return true
 	}
 	return false
 }
@@ -90,9 +100,56 @@ func executeAssignment(assign *Assignment) {
 			arr = append(arr, parseValue(v))
 		}
 		Env[assign.Name] = VarValue{ArrayValue: arr, IsArray: true}
-	} else {
-		Env[assign.Name] = parseValue(assign.Value)
+	} else if assign.Value.Value != "" || assign.Value.IsVarRef {
+		val := parseValue(assign.Value)
+		Env[assign.Name] = val
+		if assign.IsExport {
+			if val.IsNumber {
+				os.Setenv(assign.Name, strconv.FormatFloat(val.NumberValue, 'f', -1, 64))
+			} else {
+				os.Setenv(assign.Name, val.StringValue)
+			}
+		}
+	} else if assign.IsExport {
+		if val, ok := Env[assign.Name]; ok {
+			if val.IsNumber {
+				os.Setenv(assign.Name, strconv.FormatFloat(val.NumberValue, 'f', -1, 64))
+			} else {
+				os.Setenv(assign.Name, val.StringValue)
+			}
+		}
 	}
+}
+
+func executeMathCondition(cond *MathCondition) bool {
+	left := parseValue(cond.Left).NumberValue
+	right := parseValue(cond.Right).NumberValue
+
+	switch cond.Operator {
+	case "<": return left < right
+	case ">": return left > right
+	case "<=": return left <= right
+	case ">=": return left >= right
+	case "==": return left == right
+	case "!=": return left != right
+	}
+	return false
+}
+
+func executeMathAssignment(inc *MathAssignment) {
+	left := parseValue(inc.Left).NumberValue
+	right := parseValue(inc.Right).NumberValue
+	
+	var res float64
+	switch inc.Operator {
+	case "+": res = left + right
+	case "-": res = left - right
+	case "*": res = left * right
+	case "/": 
+		if right != 0 { res = left / right }
+	}
+	
+	Env[inc.Name] = VarValue{NumberValue: res, IsNumber: true}
 }
 
 func resolveVarRef(arg Arg) string {

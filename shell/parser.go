@@ -82,14 +82,38 @@ func (p *Parser) parseScriptBlock(untilTokens ...TokenType) (*Script, error) {
 			script.Statements = append(script.Statements, stmt)
 			continue
 		}
-
-		// Check for assignment: name = ...
-		if p.current.Type == TokenWord && p.peekToken().Type == TokenAssign {
-			stmt, err := p.parseAssignment()
+		
+		if p.current.Type == TokenFor {
+			stmt, err := p.parseFor()
 			if err != nil {
 				return script, err
 			}
 			script.Statements = append(script.Statements, stmt)
+			continue
+		}
+
+		var isExport bool
+		if p.current.Type == TokenExport {
+			isExport = true
+			p.advance()
+		}
+
+		// Check for assignment: name = ...
+		if p.current.Type == TokenWord && p.peekToken().Type == TokenAssign {
+			stmt, err := p.parseAssignment(isExport)
+			if err != nil {
+				return script, err
+			}
+			script.Statements = append(script.Statements, stmt)
+			continue
+		} else if isExport {
+			name := p.current.Value
+			if strings.HasPrefix(name, "#") || strings.HasPrefix(name, "$") {
+				name = name[1:]
+			}
+			stmt := &Assignment{Name: name, IsExport: true}
+			script.Statements = append(script.Statements, stmt)
+			p.advance()
 			continue
 		}
 
@@ -113,8 +137,12 @@ func (p *Parser) parseScriptBlock(untilTokens ...TokenType) (*Script, error) {
 	return script, nil
 }
 
-func (p *Parser) parseAssignment() (*Assignment, error) {
-	assign := &Assignment{Name: p.current.Value}
+func (p *Parser) parseAssignment(isExport bool) (*Assignment, error) {
+	name := p.current.Value
+	if strings.HasPrefix(name, "#") || strings.HasPrefix(name, "$") {
+		name = name[1:]
+	}
+	assign := &Assignment{Name: name, IsExport: isExport}
 	p.advance() // consume name
 	p.advance() // consume =
 
@@ -238,6 +266,74 @@ func (p *Parser) parseWhile() (*WhileControl, error) {
 	}
 
 	return whileCtrl, nil
+}
+
+func (p *Parser) parseFor() (*ForControl, error) {
+	p.advance() // consume 'for'
+	if p.current.Type == TokenLParen {
+		p.advance()
+	}
+
+	init, err := p.parseAssignment(false)
+	if err != nil {
+		return nil, err
+	}
+	if p.current.Type == TokenSemicolon {
+		p.advance()
+	}
+
+	cond := &MathCondition{}
+	cond.Left = p.parseArg(p.current)
+	p.advance()
+	if p.current.Type == TokenRedirectIn {
+		cond.Operator = "<"
+	} else if p.current.Type == TokenRedirectOut {
+		cond.Operator = ">"
+	} else {
+		cond.Operator = p.current.Value
+	}
+	p.advance()
+	cond.Right = p.parseArg(p.current)
+	p.advance()
+
+	if p.current.Type == TokenSemicolon {
+		p.advance()
+	}
+
+	inc := &MathAssignment{}
+	inc.Name = p.current.Value
+	if strings.HasPrefix(inc.Name, "#") || strings.HasPrefix(inc.Name, "$") {
+		inc.Name = inc.Name[1:]
+	}
+	p.advance() // consume name
+	p.advance() // consume =
+	inc.Left = p.parseArg(p.current)
+	p.advance()
+	inc.Operator = p.current.Value
+	p.advance()
+	inc.Right = p.parseArg(p.current)
+	p.advance()
+
+	if p.current.Type == TokenRParen {
+		p.advance()
+	}
+	if p.current.Type == TokenSemicolon {
+		p.advance()
+	}
+
+	forCtrl := &ForControl{Init: init, Condition: cond, Increment: inc}
+	forCtrl.Body, err = p.parseScriptBlock(TokenDone)
+	if err != nil {
+		return nil, err
+	}
+
+	if p.current.Type == TokenDone {
+		p.advance()
+	} else if p.current.Type == TokenEOF {
+		return nil, ErrIncomplete
+	}
+
+	return forCtrl, nil
 }
 
 func (p *Parser) ParseSequence() (*Sequence, error) {

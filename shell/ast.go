@@ -66,12 +66,34 @@ type WhileControl struct {
 func (s *WhileControl) isStatement() {}
 
 type Assignment struct {
-	Name    string
-	IsArray bool
-	Value   Arg
-	Values  []Arg
+	Name     string
+	IsArray  bool
+	IsExport bool
+	Value    Arg
+	Values   []Arg
 }
 func (s *Assignment) isStatement() {}
+
+type ForControl struct {
+	Init      *Assignment
+	Condition *MathCondition
+	Increment *MathAssignment
+	Body      *Script
+}
+func (s *ForControl) isStatement() {}
+
+type MathCondition struct {
+	Left     Arg
+	Operator string
+	Right    Arg
+}
+
+type MathAssignment struct {
+	Name     string
+	Left     Arg
+	Operator string
+	Right    Arg
+}
 
 type Script struct {
 	Statements []Statement
