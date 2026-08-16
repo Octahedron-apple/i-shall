@@ -12,10 +12,12 @@ While minimal, `i-shall` currently supports a core set of standard POSIX shell f
 - **Pipelining**: Chain processes together using `|` (e.g., `ls -la | grep main`).
 - **I/O Redirection**: Supports writing (`>`), appending (`>>`), and reading (`<`) standard input/output to and from files.
 - **Logical Operators**: Conditional chaining of commands using `&&` (AND) and `||` (OR) (e.g., `build && run || echo "Failed"`).
-- **Quote Parsing**: Correctly groups strings with spaces using single (`'`) and double (`"`) quotes.
-- **Built-ins**: Currently supports `cd`, `exit`, and `source` (reads and executes commands from a file).
+- **Quote Parsing**: Correctly groups strings with spaces using single (`'`) and double (`"`) quotes. Double quotes natively support variable interpolation (e.g. `"Hello $name"`).
+- **Built-ins**: Currently supports `cd`, `exit`, `source`, and `trap` (for intercepting OS signals).
 - **Control Flow ("Better Syntax")**: Supports infinite-nesting for `if/elif/else/fi`, `while/done` loops, and C-Style `for` loops (e.g., `for (#i = 0; #i < 5; #i = #i + 1)`). It uses a custom, cleaner syntax that drops standard bash's `then` and `do` keywords entirely, inferring block boundaries natively via semicolons (or newlines)!
 - **Variables & Exporting**: Support for `$var` (Strings), `#var` (Numbers) and arrays (`arr = (a, b)`). Assign variables natively with `name = "John"` and export them to child processes with `export name = "John"`.
+- **Advanced Expansions**: Includes support for Brace Expansion (`{a,b}`) and Tilde Expansion (`~` for home directory).
+- **Command Substitution**: Capture the standard output of commands directly into arguments or variables using the `$(...)` syntax.
 - **Profile Sourcing**: Automatically looks for and executes `~/.ishallrc` on startup.
 - **Subshells**: Enclosing commands in parentheses `( )` launches them in an isolated child process, enabling isolated execution environments that plug seamlessly into pipelines.
 - **Dynamic Colored Prompt**: Displays a colorful `user@device@ishall:filepath>` prompt using ANSI escape codes.

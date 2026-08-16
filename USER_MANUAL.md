@@ -100,5 +100,37 @@ ll /tmp
 # Executes: ls -la /tmp
 ```
 
-## 6. Interactive Shell (REPL)
+## 6. Advanced Features
+
+`i-shall` implements powerful command expansions and substitution natively!
+
+### Command Substitution `$(...)`
+You can execute a command and capture its standard output directly into a variable or as an argument to another command.
+```bash
+cwd_files = $(ls)
+echo "Current files are:" $cwd_files
+```
+
+### Variable Interpolation & Quotes
+Single quotes (`'...'`) treat everything as literal text. Double quotes (`"..."`) allow you to seamlessly inject variables into your strings!
+```bash
+name = "World"
+echo "Hello $name! 1 + 1 is #two"
+```
+
+### Path & Brace Expansions
+- **Tilde (`~`)**: Instantly expands to your home directory (`cd ~` or `ls ~/Documents`).
+- **Brace Expansion (`{}`)**: Rapidly generate string permutations.
+```bash
+echo file_{1,2,3}.txt
+# Output: file_1.txt file_2.txt file_3.txt
+```
+
+### Trapping Signals
+You can catch OS signals (like `SIGINT` from pressing Ctrl+C) and run a command instead of crashing your script.
+```bash
+trap "echo 'You pressed Ctrl+C!'" SIGINT
+```
+
+## 7. Interactive Shell (REPL)
 If you are typing interactively and leave an `if` block, a loop, or a quote `"` open when pressing Enter, `i-shall` will automatically buffer your input and change your prompt to `> `, allowing you to seamlessly type multi-line code directly in the terminal!
