@@ -13,52 +13,52 @@ func TestLexer(t *testing.T) {
 		{
 			input: "ls -l",
 			expected: []shell.Token{
-				{shell.TokenWord, "ls", false},
-				{shell.TokenWord, "-l", false},
-				{shell.TokenEOF, "", false},
+				{Type: shell.TokenWord, Value: "ls"},
+				{Type: shell.TokenWord, Value: "-l"},
+				{Type: shell.TokenEOF, Value: ""},
 			},
 		},
 		{
 			input: "echo 'hello world' | grep a",
 			expected: []shell.Token{
-				{shell.TokenWord, "echo", false},
-				{shell.TokenWord, "hello world", false},
-				{shell.TokenPipe, "|", false},
-				{shell.TokenWord, "grep", false},
-				{shell.TokenWord, "a", false},
-				{shell.TokenEOF, "", false},
+				{Type: shell.TokenWord, Value: "echo"},
+				{Type: shell.TokenWord, Value: "hello world", IsSingleQuoted: true},
+				{Type: shell.TokenPipe, Value: "|"},
+				{Type: shell.TokenWord, Value: "grep"},
+				{Type: shell.TokenWord, Value: "a"},
+				{Type: shell.TokenEOF, Value: ""},
 			},
 		},
 		{
 			input: "cat<file.txt>out.txt>>log.txt",
 			expected: []shell.Token{
-				{shell.TokenWord, "cat", false},
-				{shell.TokenRedirectIn, "<", false},
-				{shell.TokenWord, "file.txt", false},
-				{shell.TokenRedirectOut, ">", false},
-				{shell.TokenWord, "out.txt", false},
-				{shell.TokenRedirectAppend, ">>", false},
-				{shell.TokenWord, "log.txt", false},
-				{shell.TokenEOF, "", false},
+				{Type: shell.TokenWord, Value: "cat"},
+				{Type: shell.TokenRedirectIn, Value: "<"},
+				{Type: shell.TokenWord, Value: "file.txt"},
+				{Type: shell.TokenRedirectOut, Value: ">"},
+				{Type: shell.TokenWord, Value: "out.txt"},
+				{Type: shell.TokenRedirectAppend, Value: ">>"},
+				{Type: shell.TokenWord, Value: "log.txt"},
+				{Type: shell.TokenEOF, Value: ""},
 			},
 		},
 		{
 			input: "ls *.go 'not*.go'",
 			expected: []shell.Token{
-				{shell.TokenWord, "ls", false},
-				{shell.TokenWord, "*.go", true},
-				{shell.TokenWord, "not*.go", false},
-				{shell.TokenEOF, "", false},
+				{Type: shell.TokenWord, Value: "ls"},
+				{Type: shell.TokenWord, Value: "*.go", IsGlobbable: true},
+				{Type: shell.TokenWord, Value: "not*.go", IsSingleQuoted: true},
+				{Type: shell.TokenEOF, Value: ""},
 			},
 		},
 		{
 			input: "(ls -l)",
 			expected: []shell.Token{
-				{shell.TokenLParen, "(", false},
-				{shell.TokenWord, "ls", false},
-				{shell.TokenWord, "-l", false},
-				{shell.TokenRParen, ")", false},
-				{shell.TokenEOF, "", false},
+				{Type: shell.TokenLParen, Value: "("},
+				{Type: shell.TokenWord, Value: "ls"},
+				{Type: shell.TokenWord, Value: "-l"},
+				{Type: shell.TokenRParen, Value: ")"},
+				{Type: shell.TokenEOF, Value: ""},
 			},
 		},
 	}
@@ -79,9 +79,9 @@ func TestLexer(t *testing.T) {
 		}
 
 		for i, tok := range tokens {
-			if tok.Type != tt.expected[i].Type || tok.Value != tt.expected[i].Value {
-				t.Errorf("For input %q at token %d, expected {%v, %q}, got {%v, %q}",
-					tt.input, i, tt.expected[i].Type, tt.expected[i].Value, tok.Type, tok.Value)
+			if tok.Type != tt.expected[i].Type || tok.Value != tt.expected[i].Value || tok.IsGlobbable != tt.expected[i].IsGlobbable || tok.IsSingleQuoted != tt.expected[i].IsSingleQuoted {
+				t.Errorf("For input %q at token %d, expected %+v, got %+v",
+					tt.input, i, tt.expected[i], tok)
 			}
 		}
 	}

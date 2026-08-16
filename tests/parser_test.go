@@ -93,7 +93,10 @@ func TestParser(t *testing.T) {
 	for _, tt := range tests {
 		lexer := shell.NewLexer(tt.input)
 		parser := shell.NewParser(lexer)
-		seq := parser.ParseSequence()
+		seq, err := parser.ParseSequence()
+		if err != nil {
+			t.Fatalf("For input %q, unexpected error: %v", tt.input, err)
+		}
 
 		if !reflect.DeepEqual(seq, tt.expected) {
 			t.Errorf("For input %q, expected %+v, got %+v", tt.input, tt.expected, seq)
