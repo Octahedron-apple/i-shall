@@ -15,7 +15,39 @@ func (p *Parser) advance() {
 	p.current = p.lexer.NextToken()
 }
 
-func (p *Parser) ParsePipeline() *Pipeline {
+func (p *Parser) ParseSequence() *Sequence {
+	seq := &Sequence{}
+
+	if p.current.Type == TokenEOF {
+		return seq
+	}
+
+	var currentOp Operator = OpNone
+
+	for p.current.Type != TokenEOF {
+		pipeline := p.parsePipeline()
+		if pipeline != nil && len(pipeline.Commands) > 0 {
+			seq.Nodes = append(seq.Nodes, &SequenceNode{
+				Op:       currentOp,
+				Pipeline: pipeline,
+			})
+		}
+
+		if p.current.Type == TokenAnd {
+			currentOp = OpAnd
+			p.advance()
+		} else if p.current.Type == TokenOr {
+			currentOp = OpOr
+			p.advance()
+		} else {
+			break
+		}
+	}
+
+	return seq
+}
+
+func (p *Parser) parsePipeline() *Pipeline {
 	pipeline := &Pipeline{}
 	
 	if p.current.Type == TokenEOF {
@@ -40,13 +72,13 @@ func (p *Parser) ParsePipeline() *Pipeline {
 }
 
 func (p *Parser) parseCommand() *Command {
-	if p.current.Type == TokenEOF || p.current.Type == TokenPipe {
+	if p.current.Type == TokenEOF || p.current.Type == TokenPipe || p.current.Type == TokenAnd || p.current.Type == TokenOr {
 		return nil
 	}
 
 	cmd := &Command{}
 
-	for p.current.Type != TokenEOF && p.current.Type != TokenPipe {
+	for p.current.Type != TokenEOF && p.current.Type != TokenPipe && p.current.Type != TokenAnd && p.current.Type != TokenOr {
 		switch p.current.Type {
 		case TokenWord:
 			cmd.Args = append(cmd.Args, p.current.Value)

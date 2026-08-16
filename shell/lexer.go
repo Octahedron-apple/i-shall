@@ -13,6 +13,8 @@ const (
 	TokenRedirectOut    // >
 	TokenRedirectAppend // >>
 	TokenRedirectIn     // <
+	TokenAnd            // &&
+	TokenOr             // ||
 )
 
 type Token struct {
@@ -39,7 +41,16 @@ func (l *Lexer) NextToken() Token {
 	char := l.input[l.pos]
 
 	switch char {
+	case '&':
+		if l.pos+1 < len(l.input) && l.input[l.pos+1] == '&' {
+			l.pos += 2
+			return Token{Type: TokenAnd, Value: "&&"}
+		}
 	case '|':
+		if l.pos+1 < len(l.input) && l.input[l.pos+1] == '|' {
+			l.pos += 2
+			return Token{Type: TokenOr, Value: "||"}
+		}
 		l.pos++
 		return Token{Type: TokenPipe, Value: "|"}
 	case '<':
@@ -83,7 +94,7 @@ func (l *Lexer) readWord() Token {
 		}
 
 		if !inSingleQuote && !inDoubleQuote {
-			if char == ' ' || char == '\t' || char == '|' || char == '<' || char == '>' {
+			if char == ' ' || char == '\t' || char == '|' || char == '<' || char == '>' || char == '&' {
 				break
 			}
 		}

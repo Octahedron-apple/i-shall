@@ -6,9 +6,32 @@ import (
 	"os/exec"
 )
 
-func ExecutePipeline(pipeline *Pipeline) {
-	if pipeline == nil || len(pipeline.Commands) == 0 {
+func ExecuteSequence(seq *Sequence) {
+	if seq == nil || len(seq.Nodes) == 0 {
 		return
+	}
+
+	var lastSuccess bool = true // Initial state
+
+	for i, node := range seq.Nodes {
+		// Determine if we should execute based on previous success and current Op
+		if i > 0 {
+			if node.Op == OpAnd && !lastSuccess {
+				continue
+			}
+			if node.Op == OpOr && lastSuccess {
+				continue
+			}
+		}
+
+		lastSuccess = executePipeline(node.Pipeline)
+	}
+}
+
+// executePipeline returns true if successful (exit code 0), false otherwise
+func executePipeline(pipeline *Pipeline) bool {
+	if pipeline == nil || len(pipeline.Commands) == 0 {
+		return true
 	}
 
 	// Handle Built-ins (like cd)
@@ -21,7 +44,7 @@ func ExecutePipeline(pipeline *Pipeline) {
 			home, err := os.UserHomeDir()
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "Error getting home directory:", err)
-				return
+				return false
 			}
 			targetDir = home
 		}
@@ -29,8 +52,9 @@ func ExecutePipeline(pipeline *Pipeline) {
 		err := os.Chdir(targetDir)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			return false
 		}
-		return
+		return true
 	}
 
 	var cmds []*exec.Cmd
@@ -47,7 +71,7 @@ func ExecutePipeline(pipeline *Pipeline) {
 			file, err := os.Open(astCmd.RedirectIn)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "Error opening input file:", err)
-				return
+				return false
 			}
 			cmd.Stdin = file
 		}
@@ -60,7 +84,7 @@ func ExecutePipeline(pipeline *Pipeline) {
 			file, err := os.OpenFile(astCmd.RedirectOut, flags, 0644)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "Error opening output file:", err)
-				return
+				return false
 			}
 			cmd.Stdout = file
 		}
@@ -69,14 +93,14 @@ func ExecutePipeline(pipeline *Pipeline) {
 	}
 
 	if len(cmds) == 0 {
-		return
+		return true
 	}
 
 	for i := 0; i < len(cmds)-1; i++ {
 		stdout, err := cmds[i].StdoutPipe()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error setting up pipe:", err)
-			return
+			return false
 		}
 		cmds[i+1].Stdin = stdout
 	}
@@ -93,14 +117,21 @@ func ExecutePipeline(pipeline *Pipeline) {
 		err := cmd.Start()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error starting command:", err)
-			return
+			return false
 		}
 	}
 
-	for _, cmd := range cmds {
+	var success bool = true
+	for i, cmd := range cmds {
 		err := cmd.Wait()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Command finished with error:", err)
+		
+		// We only care about the exit status of the LAST command in the pipeline
+		if i == len(cmds)-1 {
+			if err != nil {
+				success = false
+			}
 		}
 	}
+
+	return success
 }

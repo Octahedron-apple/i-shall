@@ -30,7 +30,7 @@ func main() {
 			cwd = "unknown"
 		}
 
-		fmt.Printf("%s@%s@ishall:%s> ", username, hostname, cwd)
+		fmt.Printf("\033[32m%s@%s\033[0m@ishall:\033[34m%s\033[0m> ", username, hostname, cwd)
 		
 		input, err := reader.ReadString('\n')
 		if err != nil {
@@ -48,8 +48,8 @@ func main() {
 
 		lexer := shell.NewLexer(input)
 		parser := shell.NewParser(lexer)
-		pipeline := parser.ParsePipeline()
+		seq := parser.ParseSequence()
 
-		shell.ExecutePipeline(pipeline)
+		shell.ExecuteSequence(seq)
 	}
 }
