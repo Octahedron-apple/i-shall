@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 func ExecuteSequence(seq *Sequence) {
@@ -56,12 +57,44 @@ func executePipeline(pipeline *Pipeline) bool {
 			return false
 		}
 		return true
+	} else if len(firstCmd.Args) > 0 && firstCmd.Args[0].Value == "source" {
+		if len(firstCmd.Args) < 2 {
+			fmt.Fprintln(os.Stderr, "source: missing argument")
+			return false
+		}
+		
+		// For source, we expand args to support `source ~/.ishallrc` or `source *.sh` if we wanted
+		fileToSource := firstCmd.Args[1].Value
+		if firstCmd.Args[1].IsGlobbable {
+			matches, _ := filepath.Glob(fileToSource)
+			if len(matches) > 0 {
+				fileToSource = matches[0]
+			}
+		}
+
+		content, err := os.ReadFile(fileToSource)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "source:", err)
+			return false
+		}
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			lexer := NewLexer(line)
+			parser := NewParser(lexer)
+			seq := parser.ParseSequence()
+			ExecuteSequence(seq)
+		}
+		return true
 	}
 
 	var cmds []*exec.Cmd
 
 	for _, astCmd := range pipeline.Commands {
-		if len(astCmd.Args) == 0 {
+		if !astCmd.IsSubshell && len(astCmd.Args) == 0 {
 			continue
 		}
 		
@@ -79,7 +112,12 @@ func executePipeline(pipeline *Pipeline) bool {
 			}
 		}
 
-		cmd := exec.Command(expandedArgs[0], expandedArgs[1:]...)
+		var cmd *exec.Cmd
+		if astCmd.IsSubshell {
+			cmd = exec.Command(os.Args[0], "-c", astCmd.SubshellString)
+		} else {
+			cmd = exec.Command(expandedArgs[0], expandedArgs[1:]...)
+		}
 		cmd.Stderr = os.Stderr
 
 		if astCmd.RedirectIn != "" {

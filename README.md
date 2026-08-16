@@ -13,7 +13,9 @@ While minimal, `i-shall` currently supports a core set of standard POSIX shell f
 - **I/O Redirection**: Supports writing (`>`), appending (`>>`), and reading (`<`) standard input/output to and from files.
 - **Logical Operators**: Conditional chaining of commands using `&&` (AND) and `||` (OR) (e.g., `build && run || echo "Failed"`).
 - **Quote Parsing**: Correctly groups strings with spaces using single (`'`) and double (`"`) quotes.
-- **Built-ins**: Currently supports `cd` (changes directory) and `exit`.
+- **Built-ins**: Currently supports `cd`, `exit`, and `source` (reads and executes commands from a file).
+- **Profile Sourcing**: Automatically looks for and executes `~/.ishallrc` on startup.
+- **Subshells**: Enclosing commands in parentheses `( )` launches them in an isolated child process, enabling isolated execution environments that plug seamlessly into pipelines.
 - **Dynamic Colored Prompt**: Displays a colorful `user@device@ishall:filepath>` prompt using ANSI escape codes.
 - **Tab Completion & History**: Supports auto-completing files in the current directory with `TAB`, saving command history across sessions, and full arrow-key cursor navigation.
 
@@ -21,10 +23,9 @@ While minimal, `i-shall` currently supports a core set of standard POSIX shell f
 
 `i-shall` is an educational project and lacks many quality-of-life and advanced features found in daily-driver shells like Bash, Zsh, or Fish. Currently, it **does not** support:
 
-- **Variables & Environment Manipulation**: No support for `$VAR` expansion, `export`, or `.bashrc`/profile sourcing.
+- **Variables & Environment Manipulation**: No support for `$VAR` expansion, `export`, or environment variables.
 - **Background Tasks & Job Control**: No support for running commands in the background (`&`), nor handling `Ctrl+Z` to suspend jobs (`fg`/`bg`).
-- **Globbing/Wildcards**: Using `*` or `?` (e.g., `rm *.txt`) will not expand to file lists. It will be passed as a literal `*` to the command.
-- **Advanced Control Flow**: No `if`, `while`, `for`, or subshells `()`.
+- **Advanced Control Flow**: No `if`, `while`, or `for` loops.
 - **Aliases**: No custom command aliases.
 
 ## Architecture & Testing

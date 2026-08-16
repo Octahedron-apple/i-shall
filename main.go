@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/user"
@@ -29,6 +30,17 @@ func (f *FileCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) 
 }
 
 func main() {
+	cFlag := flag.String("c", "", "Command to execute")
+	flag.Parse()
+
+	if *cFlag != "" {
+		lexer := shell.NewLexer(*cFlag)
+		parser := shell.NewParser(lexer)
+		seq := parser.ParseSequence()
+		shell.ExecuteSequence(seq)
+		return
+	}
+
 	currentUser, err := user.Current()
 	username := "unknown"
 	if err == nil {
@@ -38,6 +50,17 @@ func main() {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		rcPath := filepath.Join(homeDir, ".ishallrc")
+		if _, err := os.Stat(rcPath); err == nil {
+			lexer := shell.NewLexer("source " + rcPath)
+			parser := shell.NewParser(lexer)
+			seq := parser.ParseSequence()
+			shell.ExecuteSequence(seq)
+		}
 	}
 
 	historyFile := filepath.Join(os.TempDir(), "ishall_history")

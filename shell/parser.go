@@ -1,5 +1,7 @@
 package shell
 
+import "strings"
+
 type Parser struct {
 	lexer   *Lexer
 	current Token
@@ -72,16 +74,49 @@ func (p *Parser) parsePipeline() *Pipeline {
 }
 
 func (p *Parser) parseCommand() *Command {
-	if p.current.Type == TokenEOF || p.current.Type == TokenPipe || p.current.Type == TokenAnd || p.current.Type == TokenOr {
+	if p.current.Type == TokenEOF || p.current.Type == TokenPipe || p.current.Type == TokenAnd || p.current.Type == TokenOr || p.current.Type == TokenRParen {
 		return nil
 	}
 
 	cmd := &Command{}
 
-	for p.current.Type != TokenEOF && p.current.Type != TokenPipe && p.current.Type != TokenAnd && p.current.Type != TokenOr {
+	if p.current.Type == TokenLParen {
+		p.advance()
+		cmd.IsSubshell = true
+		
+		var subshellTokens []string
+		parenCount := 1
+		
+		for p.current.Type != TokenEOF {
+			if p.current.Type == TokenLParen {
+				parenCount++
+			} else if p.current.Type == TokenRParen {
+				parenCount--
+				if parenCount == 0 {
+					p.advance()
+					break
+				}
+			}
+			
+			val := p.current.Value
+			if p.current.Type == TokenWord && strings.ContainsAny(val, " \t|&<>()*?") {
+				val = "\"" + val + "\""
+			}
+			subshellTokens = append(subshellTokens, val)
+			p.advance()
+		}
+		
+		cmd.SubshellString = strings.Join(subshellTokens, " ")
+	}
+
+	for p.current.Type != TokenEOF && p.current.Type != TokenPipe && p.current.Type != TokenAnd && p.current.Type != TokenOr && p.current.Type != TokenRParen {
 		switch p.current.Type {
 		case TokenWord:
-			cmd.Args = append(cmd.Args, Arg{Value: p.current.Value, IsGlobbable: p.current.IsGlobbable})
+			if !cmd.IsSubshell {
+				cmd.Args = append(cmd.Args, Arg{Value: p.current.Value, IsGlobbable: p.current.IsGlobbable})
+			} else {
+				// We don't support trailing args after a subshell except redirections
+			}
 			p.advance()
 		case TokenRedirectIn:
 			p.advance()
@@ -108,5 +143,8 @@ func (p *Parser) parseCommand() *Command {
 		}
 	}
 
-	return cmd
+	if cmd.IsSubshell || len(cmd.Args) > 0 {
+		return cmd
+	}
+	return nil
 }

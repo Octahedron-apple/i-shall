@@ -51,6 +51,16 @@ func TestLexer(t *testing.T) {
 				{shell.TokenEOF, "", false},
 			},
 		},
+		{
+			input: "(ls -l)",
+			expected: []shell.Token{
+				{shell.TokenLParen, "(", false},
+				{shell.TokenWord, "ls", false},
+				{shell.TokenWord, "-l", false},
+				{shell.TokenRParen, ")", false},
+				{shell.TokenEOF, "", false},
+			},
+		},
 	}
 
 	for _, tt := range tests {

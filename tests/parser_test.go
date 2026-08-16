@@ -73,6 +73,21 @@ func TestParser(t *testing.T) {
 				},
 			},
 		},
+		{
+			input: "(ls -l)",
+			expected: &shell.Sequence{
+				Nodes: []*shell.SequenceNode{
+					{
+						Op: shell.OpNone,
+						Pipeline: &shell.Pipeline{
+							Commands: []*shell.Command{
+								{IsSubshell: true, SubshellString: "ls -l"},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

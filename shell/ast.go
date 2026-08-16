@@ -18,6 +18,8 @@ type Command struct {
 	RedirectIn     string
 	RedirectOut    string
 	RedirectAppend bool
+	IsSubshell     bool
+	SubshellString string
 }
 
 type Pipeline struct {
