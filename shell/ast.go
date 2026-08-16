@@ -11,6 +11,11 @@ const (
 type Arg struct {
 	Value       string
 	IsGlobbable bool
+	IsVarRef    bool   // Starts with $ or #
+	VarName     string // The name of the variable
+	VarType     string // "$" or "#"
+	IsArrayIdx  bool
+	ArrayIndex  string // The index if it's an array access e.g., $arr[0]
 }
 
 type Command struct {
@@ -59,6 +64,14 @@ type WhileControl struct {
 	Body      *Script
 }
 func (s *WhileControl) isStatement() {}
+
+type Assignment struct {
+	Name    string
+	IsArray bool
+	Value   Arg
+	Values  []Arg
+}
+func (s *Assignment) isStatement() {}
 
 type Script struct {
 	Statements []Statement

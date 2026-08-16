@@ -5,7 +5,18 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 )
+
+type VarValue struct {
+	StringValue string
+	NumberValue float64
+	ArrayValue  []VarValue
+	IsNumber    bool
+	IsArray     bool
+}
+
+var Env = make(map[string]VarValue)
 
 func ExecuteScript(script *Script) {
 	if script == nil {
@@ -22,13 +33,16 @@ func ExecuteStatement(stmt Statement) bool {
 	}
 
 	switch s := stmt.(type) {
+	case *Assignment:
+		executeAssignment(s)
+		return true
 	case *Sequence:
 		return ExecuteSequence(s)
 	case *IfControl:
 		success := ExecuteSequence(s.Condition)
 		if success {
 			ExecuteScript(s.Body)
-			return true // or return the exit code of Body
+			return true
 		}
 
 		for _, elif := range s.Elifs {
@@ -55,6 +69,61 @@ func ExecuteStatement(stmt Statement) bool {
 	return false
 }
 
+func parseValue(arg Arg) VarValue {
+	if arg.IsVarRef {
+		val := resolveVarRef(arg)
+		// Return it as string, let it be reparsed below
+		arg.Value = val
+	}
+
+	// Try to parse as number
+	if num, err := strconv.ParseFloat(arg.Value, 64); err == nil {
+		return VarValue{NumberValue: num, IsNumber: true}
+	}
+	return VarValue{StringValue: arg.Value}
+}
+
+func executeAssignment(assign *Assignment) {
+	if assign.IsArray {
+		var arr []VarValue
+		for _, v := range assign.Values {
+			arr = append(arr, parseValue(v))
+		}
+		Env[assign.Name] = VarValue{ArrayValue: arr, IsArray: true}
+	} else {
+		Env[assign.Name] = parseValue(assign.Value)
+	}
+}
+
+func resolveVarRef(arg Arg) string {
+	val, ok := Env[arg.VarName]
+	if !ok {
+		return ""
+	}
+
+	if arg.IsArrayIdx {
+		idx, err := strconv.Atoi(arg.ArrayIndex)
+		if err != nil || !val.IsArray || idx < 0 || idx >= len(val.ArrayValue) {
+			return ""
+		}
+		val = val.ArrayValue[idx]
+	}
+
+	if arg.VarType == "$" {
+		if val.IsNumber {
+			return strconv.FormatFloat(val.NumberValue, 'f', -1, 64)
+		}
+		return val.StringValue
+	} else if arg.VarType == "#" {
+		if val.IsNumber {
+			return strconv.FormatFloat(val.NumberValue, 'f', -1, 64)
+		}
+		return val.StringValue
+	}
+
+	return ""
+}
+
 func ExecuteSequence(seq *Sequence) bool {
 	if seq == nil || len(seq.Nodes) == 0 {
 		return true
@@ -78,13 +147,11 @@ func ExecuteSequence(seq *Sequence) bool {
 	return lastSuccess
 }
 
-// executePipeline returns true if successful (exit code 0), false otherwise
 func executePipeline(pipeline *Pipeline) bool {
 	if pipeline == nil || len(pipeline.Commands) == 0 {
 		return true
 	}
 
-	// Handle Built-ins
 	firstCmd := pipeline.Commands[0]
 	if len(firstCmd.Args) > 0 && firstCmd.Args[0].Value == "cd" {
 		var targetDir string
@@ -127,7 +194,10 @@ func executePipeline(pipeline *Pipeline) bool {
 		
 		lexer := NewLexer(string(content))
 		parser := NewParser(lexer)
-		script := parser.ParseScript()
+		script, err := parser.ParseScript()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "source error:", err)
+		}
 		ExecuteScript(script)
 		
 		return true
@@ -142,15 +212,20 @@ func executePipeline(pipeline *Pipeline) bool {
 		
 		var expandedArgs []string
 		for _, arg := range astCmd.Args {
-			if arg.IsGlobbable {
-				matches, err := filepath.Glob(arg.Value)
+			val := arg.Value
+			if arg.IsVarRef {
+				val = resolveVarRef(arg)
+			}
+
+			if arg.IsGlobbable && !arg.IsVarRef {
+				matches, err := filepath.Glob(val)
 				if err == nil && len(matches) > 0 {
 					expandedArgs = append(expandedArgs, matches...)
 				} else {
-					expandedArgs = append(expandedArgs, arg.Value)
+					expandedArgs = append(expandedArgs, val)
 				}
 			} else {
-				expandedArgs = append(expandedArgs, arg.Value)
+				expandedArgs = append(expandedArgs, val)
 			}
 		}
 

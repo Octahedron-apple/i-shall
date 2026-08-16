@@ -1,10 +1,17 @@
 package shell
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
+
+var ErrIncomplete = errors.New("incomplete statement")
 
 type Parser struct {
 	lexer   *Lexer
 	current Token
+	peek    Token
+	hasPeek bool
 }
 
 func NewParser(lexer *Lexer) *Parser {
@@ -14,20 +21,34 @@ func NewParser(lexer *Lexer) *Parser {
 }
 
 func (p *Parser) advance() {
-	p.current = p.lexer.NextToken()
+	if p.hasPeek {
+		p.current = p.peek
+		p.hasPeek = false
+	} else {
+		p.current = p.lexer.NextToken()
+	}
 }
 
-// ParseScript is the main entry point now. It parses until EOF.
-func (p *Parser) ParseScript() *Script {
+func (p *Parser) peekToken() Token {
+	if !p.hasPeek {
+		p.peek = p.lexer.NextToken()
+		p.hasPeek = true
+	}
+	return p.peek
+}
+
+func (p *Parser) ParseScript() (*Script, error) {
 	return p.parseScriptBlock(TokenEOF)
 }
 
-// parseScriptBlock parses statements until it hits the `untilToken` or EOF.
-func (p *Parser) parseScriptBlock(untilTokens ...TokenType) *Script {
+func (p *Parser) parseScriptBlock(untilTokens ...TokenType) (*Script, error) {
 	script := &Script{}
 
 	for p.current.Type != TokenEOF {
-		// Check if we hit an early termination token (e.g. fi, done, elif, else)
+		if p.current.Type == TokenIncomplete {
+			return script, ErrIncomplete
+		}
+
 		hit := false
 		for _, t := range untilTokens {
 			if p.current.Type == t {
@@ -45,93 +66,198 @@ func (p *Parser) parseScriptBlock(untilTokens ...TokenType) *Script {
 		}
 
 		if p.current.Type == TokenIf {
-			script.Statements = append(script.Statements, p.parseIf())
+			stmt, err := p.parseIf()
+			if err != nil {
+				return script, err
+			}
+			script.Statements = append(script.Statements, stmt)
 			continue
 		}
 
 		if p.current.Type == TokenWhile {
-			script.Statements = append(script.Statements, p.parseWhile())
+			stmt, err := p.parseWhile()
+			if err != nil {
+				return script, err
+			}
+			script.Statements = append(script.Statements, stmt)
 			continue
 		}
 
-		// Otherwise, it's a normal sequence
-		seq := p.ParseSequence()
+		// Check for assignment: name = ...
+		if p.current.Type == TokenWord && p.peekToken().Type == TokenAssign {
+			stmt, err := p.parseAssignment()
+			if err != nil {
+				return script, err
+			}
+			script.Statements = append(script.Statements, stmt)
+			continue
+		}
+
+		seq, err := p.ParseSequence()
+		if err != nil {
+			return script, err
+		}
 		if seq != nil && len(seq.Nodes) > 0 {
 			script.Statements = append(script.Statements, seq)
 		}
 	}
 
-	return script
+	if p.current.Type == TokenEOF {
+		for _, t := range untilTokens {
+			if t != TokenEOF {
+				return script, ErrIncomplete
+			}
+		}
+	}
+
+	return script, nil
 }
 
-func (p *Parser) parseIf() *IfControl {
+func (p *Parser) parseAssignment() (*Assignment, error) {
+	assign := &Assignment{Name: p.current.Value}
+	p.advance() // consume name
+	p.advance() // consume =
+
+	if p.current.Type == TokenLParen {
+		// Array assignment
+		assign.IsArray = true
+		p.advance() // consume (
+
+		for p.current.Type != TokenEOF && p.current.Type != TokenRParen {
+			if p.current.Type == TokenIncomplete {
+				return assign, ErrIncomplete
+			}
+			if p.current.Type == TokenComma {
+				p.advance()
+				continue
+			}
+			
+			if p.current.Type == TokenWord {
+				assign.Values = append(assign.Values, p.parseArg(p.current))
+				p.advance()
+			} else {
+				p.advance() // Unexpected token, skip for now
+			}
+		}
+
+		if p.current.Type == TokenEOF {
+			return assign, ErrIncomplete
+		}
+		p.advance() // consume )
+	} else {
+		// Scalar assignment
+		if p.current.Type == TokenIncomplete {
+			return assign, ErrIncomplete
+		}
+		if p.current.Type == TokenWord {
+			assign.Value = p.parseArg(p.current)
+			p.advance()
+		}
+	}
+	return assign, nil
+}
+
+func (p *Parser) parseIf() (*IfControl, error) {
 	p.advance() // consume 'if'
 	
 	ifCtrl := &IfControl{}
-	ifCtrl.Condition = p.ParseSequence() // parses until ';'
+	var err error
+
+	ifCtrl.Condition, err = p.ParseSequence()
+	if err != nil {
+		return nil, err
+	}
 	
 	if p.current.Type == TokenSemicolon {
 		p.advance()
 	}
 
-	// Parse body until 'elif', 'else', or 'fi'
-	ifCtrl.Body = p.parseScriptBlock(TokenElif, TokenElse, TokenFi)
+	ifCtrl.Body, err = p.parseScriptBlock(TokenElif, TokenElse, TokenFi)
+	if err != nil {
+		return nil, err
+	}
 
-	// Parse elifs
 	for p.current.Type == TokenElif {
-		p.advance() // consume 'elif'
+		p.advance()
 		elifBlock := &ElifBlock{}
-		elifBlock.Condition = p.ParseSequence()
+		elifBlock.Condition, err = p.ParseSequence()
+		if err != nil {
+			return nil, err
+		}
 		if p.current.Type == TokenSemicolon {
 			p.advance()
 		}
-		elifBlock.Body = p.parseScriptBlock(TokenElif, TokenElse, TokenFi)
+		elifBlock.Body, err = p.parseScriptBlock(TokenElif, TokenElse, TokenFi)
+		if err != nil {
+			return nil, err
+		}
 		ifCtrl.Elifs = append(ifCtrl.Elifs, elifBlock)
 	}
 
-	// Parse else
 	if p.current.Type == TokenElse {
-		p.advance() // consume 'else'
-		ifCtrl.ElseBody = p.parseScriptBlock(TokenFi)
+		p.advance()
+		ifCtrl.ElseBody, err = p.parseScriptBlock(TokenFi)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if p.current.Type == TokenFi {
 		p.advance() // consume 'fi'
+	} else if p.current.Type == TokenEOF {
+		return nil, ErrIncomplete
 	}
 
-	return ifCtrl
+	return ifCtrl, nil
 }
 
-func (p *Parser) parseWhile() *WhileControl {
-	p.advance() // consume 'while'
+func (p *Parser) parseWhile() (*WhileControl, error) {
+	p.advance()
 
 	whileCtrl := &WhileControl{}
-	whileCtrl.Condition = p.ParseSequence()
+	var err error
+
+	whileCtrl.Condition, err = p.ParseSequence()
+	if err != nil {
+		return nil, err
+	}
 
 	if p.current.Type == TokenSemicolon {
 		p.advance()
 	}
 
-	whileCtrl.Body = p.parseScriptBlock(TokenDone)
-
-	if p.current.Type == TokenDone {
-		p.advance() // consume 'done'
+	whileCtrl.Body, err = p.parseScriptBlock(TokenDone)
+	if err != nil {
+		return nil, err
 	}
 
-	return whileCtrl
+	if p.current.Type == TokenDone {
+		p.advance()
+	} else if p.current.Type == TokenEOF {
+		return nil, ErrIncomplete
+	}
+
+	return whileCtrl, nil
 }
 
-func (p *Parser) ParseSequence() *Sequence {
+func (p *Parser) ParseSequence() (*Sequence, error) {
 	seq := &Sequence{}
 
 	if p.current.Type == TokenEOF {
-		return seq
+		return seq, nil
 	}
 
 	var currentOp Operator = OpNone
 
 	for p.current.Type != TokenEOF && p.current.Type != TokenSemicolon && p.current.Type != TokenFi && p.current.Type != TokenDone && p.current.Type != TokenElif && p.current.Type != TokenElse {
-		pipeline := p.parsePipeline()
+		if p.current.Type == TokenIncomplete {
+			return seq, ErrIncomplete
+		}
+
+		pipeline, err := p.parsePipeline()
+		if err != nil {
+			return seq, err
+		}
 		if pipeline != nil && len(pipeline.Commands) > 0 {
 			seq.Nodes = append(seq.Nodes, &SequenceNode{
 				Op:       currentOp,
@@ -150,18 +276,25 @@ func (p *Parser) ParseSequence() *Sequence {
 		}
 	}
 
-	return seq
+	return seq, nil
 }
 
-func (p *Parser) parsePipeline() *Pipeline {
+func (p *Parser) parsePipeline() (*Pipeline, error) {
 	pipeline := &Pipeline{}
 
 	if p.current.Type == TokenEOF {
-		return pipeline
+		return pipeline, nil
 	}
 
 	for {
-		cmd := p.parseCommand()
+		if p.current.Type == TokenIncomplete {
+			return pipeline, ErrIncomplete
+		}
+
+		cmd, err := p.parseCommand()
+		if err != nil {
+			return pipeline, err
+		}
 		if cmd != nil {
 			pipeline.Commands = append(pipeline.Commands, cmd)
 		}
@@ -174,12 +307,35 @@ func (p *Parser) parsePipeline() *Pipeline {
 		break
 	}
 
-	return pipeline
+	return pipeline, nil
 }
 
-func (p *Parser) parseCommand() *Command {
+func (p *Parser) parseArg(t Token) Arg {
+	arg := Arg{Value: t.Value, IsGlobbable: t.IsGlobbable}
+	if strings.HasPrefix(t.Value, "$") || strings.HasPrefix(t.Value, "#") {
+		arg.IsVarRef = true
+		arg.VarType = string(t.Value[0])
+		name := t.Value[1:]
+		
+		// Check for array access e.g., $arr[0]
+		if idx := strings.Index(name, "["); idx != -1 {
+			if strings.HasSuffix(name, "]") {
+				arg.IsArrayIdx = true
+				arg.ArrayIndex = name[idx+1 : len(name)-1]
+				arg.VarName = name[:idx]
+			} else {
+				arg.VarName = name
+			}
+		} else {
+			arg.VarName = name
+		}
+	}
+	return arg
+}
+
+func (p *Parser) parseCommand() (*Command, error) {
 	if p.current.Type == TokenEOF || p.current.Type == TokenPipe || p.current.Type == TokenAnd || p.current.Type == TokenOr || p.current.Type == TokenRParen || p.current.Type == TokenSemicolon || p.current.Type == TokenFi || p.current.Type == TokenDone || p.current.Type == TokenElif || p.current.Type == TokenElse {
-		return nil
+		return nil, nil
 	}
 
 	cmd := &Command{}
@@ -192,6 +348,9 @@ func (p *Parser) parseCommand() *Command {
 		parenCount := 1
 
 		for p.current.Type != TokenEOF {
+			if p.current.Type == TokenIncomplete {
+				return nil, ErrIncomplete
+			}
 			if p.current.Type == TokenLParen {
 				parenCount++
 			} else if p.current.Type == TokenRParen {
@@ -210,14 +369,22 @@ func (p *Parser) parseCommand() *Command {
 			p.advance()
 		}
 
+		if parenCount > 0 && p.current.Type == TokenEOF {
+			return nil, ErrIncomplete
+		}
+
 		cmd.SubshellString = strings.Join(subshellTokens, " ")
 	}
 
 	for p.current.Type != TokenEOF && p.current.Type != TokenPipe && p.current.Type != TokenAnd && p.current.Type != TokenOr && p.current.Type != TokenRParen && p.current.Type != TokenSemicolon && p.current.Type != TokenFi && p.current.Type != TokenDone && p.current.Type != TokenElif && p.current.Type != TokenElse {
+		if p.current.Type == TokenIncomplete {
+			return nil, ErrIncomplete
+		}
+		
 		switch p.current.Type {
 		case TokenWord:
 			if !cmd.IsSubshell {
-				cmd.Args = append(cmd.Args, Arg{Value: p.current.Value, IsGlobbable: p.current.IsGlobbable})
+				cmd.Args = append(cmd.Args, p.parseArg(p.current))
 			}
 			p.advance()
 		case TokenRedirectIn:
@@ -246,7 +413,7 @@ func (p *Parser) parseCommand() *Command {
 	}
 
 	if cmd.IsSubshell || len(cmd.Args) > 0 {
-		return cmd
+		return cmd, nil
 	}
-	return nil
+	return nil, nil
 }

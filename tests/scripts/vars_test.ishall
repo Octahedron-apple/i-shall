@@ -1,0 +1,13 @@
+echo "Starting data structures test";
+
+name = "Alice"
+age = 30
+arr = ($name, #age, "Hello")
+
+echo "Name is: " $name
+echo "Age is: " $age
+
+echo "Array element 0:" $arr[0]
+echo "Array element 1:" $arr[1]
+echo "Array element 2:" $arr[2]
+

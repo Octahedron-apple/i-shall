@@ -24,6 +24,9 @@ const (
 	TokenFi
 	TokenWhile
 	TokenDone
+	TokenAssign         // =
+	TokenComma          // ,
+	TokenIncomplete     // Returned when EOF is hit inside quotes
 )
 
 type Token struct {
@@ -51,12 +54,15 @@ func (l *Lexer) NextToken() Token {
 	char := l.input[l.pos]
 
 	switch char {
-	case '#':
-		// Ignore comments until newline
-		for l.pos < len(l.input) && l.input[l.pos] != '\n' {
-			l.pos++
+	case '/':
+		if l.pos+1 < len(l.input) && l.input[l.pos+1] == '/' {
+			for l.pos < len(l.input) && l.input[l.pos] != '\n' {
+				l.pos++
+			}
+			return l.NextToken()
 		}
-		return l.NextToken()
+		l.pos++
+		return Token{Type: TokenWord, Value: "/"}
 	case '&':
 		if l.pos+1 < len(l.input) && l.input[l.pos+1] == '&' {
 			l.pos += 2
@@ -88,6 +94,12 @@ func (l *Lexer) NextToken() Token {
 	case ';', '\n':
 		l.pos++
 		return Token{Type: TokenSemicolon, Value: ";"}
+	case '=':
+		l.pos++
+		return Token{Type: TokenAssign, Value: "="}
+	case ',':
+		l.pos++
+		return Token{Type: TokenComma, Value: ","}
 	}
 
 	return l.readWord()
@@ -105,7 +117,14 @@ func (l *Lexer) readWord() Token {
 	var inDoubleQuote bool
 	var isGlobbable bool
 
-	for l.pos < len(l.input) {
+	for {
+		if l.pos >= len(l.input) {
+			if inSingleQuote || inDoubleQuote {
+				return Token{Type: TokenIncomplete, Value: "quote"}
+			}
+			break
+		}
+
 		char := l.input[l.pos]
 
 		if char == '\'' && !inDoubleQuote {
@@ -113,6 +132,7 @@ func (l *Lexer) readWord() Token {
 			l.pos++
 			continue
 		}
+
 		if char == '"' && !inSingleQuote {
 			inDoubleQuote = !inDoubleQuote
 			l.pos++
@@ -120,7 +140,7 @@ func (l *Lexer) readWord() Token {
 		}
 
 		if !inSingleQuote && !inDoubleQuote {
-			if char == ' ' || char == '\t' || char == '\n' || char == '\r' || char == '|' || char == '<' || char == '>' || char == '&' || char == '(' || char == ')' || char == ';' {
+			if char == ' ' || char == '\t' || char == '\n' || char == '\r' || char == '|' || char == '<' || char == '>' || char == '&' || char == '(' || char == ')' || char == ';' || char == '=' || char == ',' {
 				break
 			}
 			if char == '*' || char == '?' {

@@ -36,8 +36,10 @@ func main() {
 	if *cFlag != "" {
 		lexer := shell.NewLexer(*cFlag)
 		parser := shell.NewParser(lexer)
-		script := parser.ParseScript()
-		shell.ExecuteScript(script)
+		script, parseErr := parser.ParseScript()
+		if parseErr == nil {
+			shell.ExecuteScript(script)
+		}
 		return
 	}
 
@@ -58,8 +60,10 @@ func main() {
 		if _, err := os.Stat(rcPath); err == nil {
 			lexer := shell.NewLexer("source " + rcPath)
 			parser := shell.NewParser(lexer)
-			script := parser.ParseScript()
-			shell.ExecuteScript(script)
+			script, parseErr := parser.ParseScript()
+			if parseErr == nil {
+				shell.ExecuteScript(script)
+			}
 		}
 	}
 
@@ -77,14 +81,20 @@ func main() {
 	}
 	defer rl.Close()
 
+	var buffer strings.Builder
+
 	for {
 		cwd, err := os.Getwd()
 		if err != nil {
 			cwd = "unknown"
 		}
 
-		prompt := fmt.Sprintf("\033[32m%s@%s\033[0m@ishall:\033[34m%s\033[0m> ", username, hostname, cwd)
-		rl.SetPrompt(prompt)
+		if buffer.Len() > 0 {
+			rl.SetPrompt("> ")
+		} else {
+			prompt := fmt.Sprintf("\033[32m%s@%s\033[0m@ishall:\033[34m%s\033[0m> ", username, hostname, cwd)
+			rl.SetPrompt(prompt)
+		}
 
 		input, err := rl.Readline()
 		if err != nil { // EOF or Ctrl-C
@@ -92,17 +102,32 @@ func main() {
 		}
 
 		input = strings.TrimSpace(input)
-		if input == "" {
+		if input == "" && buffer.Len() == 0 {
 			continue
 		}
-		if input == "exit" {
+		if input == "exit" && buffer.Len() == 0 {
 			break
 		}
 
-		lexer := shell.NewLexer(input)
-		parser := shell.NewParser(lexer)
-		script := parser.ParseScript()
+		if buffer.Len() > 0 {
+			buffer.WriteString("\n")
+		}
+		buffer.WriteString(input)
 
-		shell.ExecuteScript(script)
+		lexer := shell.NewLexer(buffer.String())
+		parser := shell.NewParser(lexer)
+		script, parseErr := parser.ParseScript()
+
+		if parseErr == shell.ErrIncomplete {
+			continue
+		}
+
+		if parseErr != nil {
+			fmt.Fprintln(os.Stderr, "Syntax error:", parseErr)
+		} else {
+			shell.ExecuteScript(script)
+		}
+		
+		buffer.Reset()
 	}
 }
